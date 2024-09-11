@@ -71,7 +71,7 @@ def coinlist(update, context):
 def main():
     initialize_db()  # Инициализируем базу данных
     
-    TOKEN = 'YOUR_TELEGRAM_BOT_TOKEN'
+    TOKEN = '7391304816:AAE7PpQaJXwW7foZa4ycMfwqkobmZ6HA-kk'
     updater = Updater(TOKEN, use_context=True)
     dp = updater.dispatcher
     
