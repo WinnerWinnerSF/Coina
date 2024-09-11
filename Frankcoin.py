@@ -1,104 +1,80 @@
-import logging
-import sqlite3
-from telegram.ext import Updater, MessageHandler, Filters, CommandHandler
+import json
 import os
+import logging
+from telegram import Update
+from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext
 
-# Настройка логирования
-logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
+# Конфигурация логирования
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Функция для создания базы данных и таблицы
-def initialize_db():
-    db_path = os.path.join(os.path.dirname(__file__), 'coins.db')
-    conn = sqlite3.connect(db_path)
-    cursor = conn.cursor()
-    
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS users (
-            user_id INTEGER PRIMARY KEY,
-            username TEXT,
-            coins REAL
-        )
-    ''')
-    
-    conn.commit()
-    conn.close()
-    logger.info("База данных инициализирована.")
+# Путь к файлу данных
+DATA_FILE = 'coins.json'
 
-# Функция для добавления пользователя в базу данных
-def add_user_to_db(user_id, username):
-    db_path = os.path.join(os.path.dirname(__file__), 'coins.db')
-    conn = sqlite3.connect(db_path)
-    cursor = conn.cursor()
-    
-    cursor.execute("SELECT * FROM users WHERE user_id=?", (user_id,))
-    result = cursor.fetchone()
-    
-    if result is None:
-        cursor.execute("INSERT INTO users (user_id, username, coins) VALUES (?, ?, ?)", 
-                       (user_id, username, 0))
-        logger.info(f"Пользователь {username} добавлен в базу данных.")
-    
-    conn.commit()
-    conn.close()
+def initialize_data():
+    """Инициализация файла данных."""
+    if not os.path.exists(DATA_FILE):
+        with open(DATA_FILE, 'w') as file:
+            json.dump({}, file)
 
-# Функция для обновления коинов
-def update_coins(user_id, coins=0.0004):
-    db_path = os.path.join(os.path.dirname(__file__), 'coins.db')
-    conn = sqlite3.connect(db_path)
-    cursor = conn.cursor()
+def load_data():
+    """Загрузка данных из JSON-файла."""
+    with open(DATA_FILE, 'r') as file:
+        return json.load(file)
 
-    cursor.execute("UPDATE users SET coins = coins + ? WHERE user_id=?", (coins, user_id))
+def save_data(data):
+    """Сохранение данных в JSON-файл."""
+    with open(DATA_FILE, 'w') as file:
+        json.dump(data, file, indent=4)
+
+def handle_message(update: Update, context: CallbackContext):
+    """Обработка сообщений и начисление коинов."""
+    user_id = update.message.from_user.id
+    username = update.message.from_user.username or "Неизвестный пользователь"
     
-    conn.commit()
-    conn.close()
-    logger.info(f"Коины обновлены для пользователя ID {user_id}.")
+    # Определяем количество коинов за сообщение
+    coins_earned = 0.0004
 
-# Команда /start
-def start(update, context):
-    update.message.reply_text("Привет! Я бот, который начисляет коины за сообщения.")
-
-# Обработка сообщений
-def handle_message(update, context):
-    try:
-        user = update.message.from_user
-        if not user:
-            raise ValueError("Нет данных пользователя.")
-        user_id = user.id
-        username = user.username if user.username else "Неизвестный пользователь"
-        add_user_to_db(user_id, username)
-        update_coins(user_id)
-    except Exception as e:
-        logger.error(f"Ошибка при обработке сообщения: {e}")
-        update.message.reply_text("Произошла ошибка при обработке вашего сообщения.")
-
-# Команда /coinlist
-def coinlist(update, context):
-    db_path = os.path.join(os.path.dirname(__file__), 'coins.db')
-    conn = sqlite3.connect(db_path)
-    cursor = conn.cursor()
-
-    cursor.execute("SELECT username, coins FROM users ORDER BY coins DESC LIMIT 10")
-    top_users = cursor.fetchall()
+    data = load_data()
     
-    message = "Топ 10 участников:\n"
-    for i, (username, coins) in enumerate(top_users, start=1):
-        message += f"{i}. {username}: {coins:.4f} коинов\n"
+    if str(user_id) not in data:
+        data[str(user_id)] = {"username": username, "coins": 0}
     
-    update.message.reply_text(message)
-    conn.close()
+    data[str(user_id)]["coins"] += coins_earned
+    save_data(data)
+    
+    logger.info(f"Пользователю {username} ({user_id}) начислено {coins_earned} коинов. Всего: {data[str(user_id)]['coins']}")
+
+def show_coins(update: Update, context: CallbackContext):
+    """Команда /coins для показа количества коинов."""
+    user_id = update.message.from_user.id
+    data = load_data()
+    
+    if str(user_id) in data:
+        coins = data[str(user_id)]['coins']
+        update.message.reply_text(f"У вас {coins} коинов.")
+    else:
+        update.message.reply_text("Вы еще не получили коины.")
 
 def main():
-    initialize_db()
+    """Запуск бота."""
+    # Инициализация данных
+    initialize_data()
     
+    # Вставьте ваш токен здесь
     TOKEN = '7391304816:AAE7PpQaJXwW7foZa4ycMfwqkobmZ6HA-kk'
-    updater = Updater(TOKEN, use_context=True)
-    dp = updater.dispatcher
     
-    dp.add_handler(CommandHandler("start", start))
-    dp.add_handler(CommandHandler("coinlist", coinlist))
-    dp.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_message))
+    # Создание объекта Updater
+    updater = Updater(token=TOKEN, use_context=True)
     
+    # Получение диспетчера для регистрации обработчиков
+    dispatcher = updater.dispatcher
+    
+    # Регистрация обработчиков команд и сообщений
+    dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_message))
+    dispatcher.add_handler(CommandHandler('coins', show_coins))
+    
+    # Запуск бота
     updater.start_polling()
     updater.idle()
 
