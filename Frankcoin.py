@@ -51,7 +51,6 @@ def handle_message(update, context):
     user = update.message.from_user
     add_user_to_db(user.id, user.username)  # Регистрируем пользователя
     update_coins(user.id)  # Начисляем коины
-    update.message.reply_text(f"{user.username}, вам начислено 0.0004 коина!")
 
 # Команда /coinlist
 def coinlist(update, context):
@@ -87,3 +86,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+    
