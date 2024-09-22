@@ -22,6 +22,8 @@ DB_CONFIG = {
 
 # Глобальные переменные
 game_active = None
+current_prize = 0
+multiplier_attempts = 3
 
 def connect_db():
     """Установка соединения с базой данных."""
@@ -287,10 +289,10 @@ def start_game(update: Update, context: CallbackContext):
             context.bot.send_message(chat_id=update.message.chat_id, text="Ответьте на сообщение пользователя, чтобы его вызвать на игру.")
     else:
         context.bot.send_message(chat_id=update.message.chat_id, text="Ошибка в команде.")
-        
+
 def end_game(update: Update, context: CallbackContext, accepted: bool):
-    """Закончить игру."""
-    global game_active
+    """Закончить игру и предложить варианты умножения."""
+    global game_active, current_prize, multiplier_attempts
     
     if not game_active:
         context.bot.send_message(chat_id=update.message.chat_id, text="Нет активной игры.")
@@ -300,66 +302,37 @@ def end_game(update: Update, context: CallbackContext, accepted: bool):
     
     if accepted:
         bettor_id = game_active['bettor']
-        challenged_id = game_active['challenged']
         bet_amount = game_active['bet_amount']
-        bet_side = game_active['bet_side']
         
-        try:
-            connection = connect_db()
-            cursor = connection.cursor()
-            
-            cursor.execute("SELECT username, coins FROM coins WHERE user_id = %s", (bettor_id,))
-            bettor_data = cursor.fetchone()
-            cursor.execute("SELECT username, coins FROM coins WHERE user_id = %s", (challenged_id,))
-            challenged_data = cursor.fetchone()
-            
-            if bettor_data and challenged_data:
-                bettor_username, bettor_coins = bettor_data
-                challenged_username, challenged_coins = challenged_data
-                
-                if bettor_coins < bet_amount or challenged_coins < bet_amount:
-                    context.bot.send_message(chat_id=chat_id, text="Ошибка при проверке количества франккоинов.")
-                    game_active = None
-                    return
-                
-                result = 'heads' if random.choice([True, False]) else 'tails'
-                winner_id = bettor_id if (result == bet_side) else challenged_id
-                winner_username = bettor_username if winner_id == bettor_id else challenged_username
-                loser_id = challenged_id if winner_id == bettor_id else bettor_id
-                loser_username = challenged_username if winner_id == bettor_id else bettor_username
-                
-                if winner_id == bettor_id:
-                    cursor.execute("UPDATE coins SET coins = coins + %s WHERE user_id = %s", (bet_amount, bettor_id))
-                    cursor.execute("UPDATE coins SET coins = coins - %s WHERE user_id = %s", (bet_amount, challenged_id))
-                    logger.info(f"Пользователю {bettor_id} начислено {bet_amount} коинов.")
-                    logger.info(f"У пользователя {challenged_id} отнято {bet_amount} коинов.")
-                else:
-                    cursor.execute("UPDATE coins SET coins = coins + %s WHERE user_id = %s", (bet_amount, challenged_id))
-                    cursor.execute("UPDATE coins SET coins = coins - %s WHERE user_id = %s", (bet_amount, bettor_id))
-                    logger.info(f"Пользователю {challenged_id} начислено {bet_amount} коинов.")
-                    logger.info(f"У пользователя {bettor_id} отнято {bet_amount} коинов.")
-                
-                connection.commit()
-                
-                context.bot.send_message(chat_id=chat_id, text="🪙")
-                context.bot.send_message(chat_id=chat_id, text=f"🪙Игра завершена!🪙\n Выпал {'орел' if result == 'heads' else 'решка'}. Победитель: @{winner_username}. Заработал со ставки: {bet_amount} франккоинов.")
-            else:
-                context.bot.send_message(chat_id=chat_id, text="Ошибка при получении данных о франккоинах.")
-        except mysql.connector.Error as err:
-            logger.error(f"Ошибка при работе с базой данных: {err}")
-            context.bot.send_message(chat_id=update.message.chat_id, text="Произошла ошибка при обработке данных о франккоинах.")
-        except Exception as e:
-            logger.error(f"Не удалось отправить сообщение: {e}")
-        finally:
-            cursor.close()
-            connection.close()
+        # Определение победителя
+        result = 'heads' if random.choice([True, False]) else 'tails'
+        winner_id = bettor_id if (result == game_active['bet_side']) else None
+        current_prize = bet_amount if winner_id == bettor_id else 0
+        
+        # Отправка сообщения с кнопками
+        keyboard = [
+            [InlineKeyboardButton("Забрать приз", callback_data='claim')],
+            [InlineKeyboardButton("Х2", callback_data='double')],
+            [InlineKeyboardButton("♠️", callback_data='suit')],
+            [InlineKeyboardButton("♣️", callback_data='suit')],
+            [InlineKeyboardButton("♥️", callback_data='suit')],
+            [InlineKeyboardButton("♦️", callback_data='suit')]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        context.bot.send_message(chat_id=chat_id, text=f"Поздравляем! Вы выиграли {current_prize} франккоинов. Выберите действие:", reply_markup=reply_markup)
+        
+        # Сохраняем состояние игры
+        game_active['prize'] = current_prize
+        game_active['multiplier_attempts'] = multiplier_attempts
+        
     else:
-        context.bot.send_message(chat_id=chat_id, text="Ставка была отменена.")
+        context.bot.send_message(chat_id=chat_id, text="Игра не была принята.")
     
-    game_active = None
+    # Не очищаем game_active, чтобы игра оставалась активной
 
 def button(update: Update, context: CallbackContext):
     """Обработка нажатий на кнопки."""
+    global current_prize, multiplier_attempts, game_active
     query = update.callback_query
     
     if query is None or query.message is None:
@@ -377,6 +350,7 @@ def button(update: Update, context: CallbackContext):
                 end_game(update, context, True)
             else:
                 query.answer("Вы не можете принять эту ставку.")
+                
         elif query.data == 'cancel':
             if user_id in [game_active['challenged'], game_active['bettor']]:
                 # Удаление сообщения с предложением
@@ -384,6 +358,51 @@ def button(update: Update, context: CallbackContext):
                 end_game(update, context, False)
             else:
                 query.answer("Вы не можете отменить эту ставку.")
+
+        elif query.data == 'claim':
+            # Начисление призовых коинов в базу данных
+            try:
+                connection = connect_db()
+                cursor = connection.cursor()
+                cursor.execute("UPDATE coins SET coins = coins + %s WHERE user_id = %s", (current_prize, user_id))
+                connection.commit()
+                context.bot.send_message(chat_id=chat_id, text=f"Вы забрали {current_prize} франккоинов.")
+            except mysql.connector.Error as err:
+                logger.error(f"Ошибка при работе с базой данных: {err}")
+                context.bot.send_message(chat_id=chat_id, text="Произошла ошибка при начислении коинов.")
+            finally:
+                cursor.close()
+                connection.close()
+
+            current_prize = 0
+            game_active = None  # Завершение игры
+
+        elif query.data == 'double':
+            if multiplier_attempts > 0:
+                if random.choice([True, False]):
+                    current_prize *= 2
+                    multiplier_attempts -= 1
+                    context.bot.send_message(chat_id=chat_id, text=f"Успех! Ваш приз теперь {current_prize} франккоинов. Попробуйте снова или заберите приз.")
+                else:
+                    context.bot.send_message(chat_id=chat_id, text="Умножение не удалось! Вы потеряли весь выигрыш.")
+                    current_prize = 0
+                    game_active = None
+
+        elif query.data in ['spades', 'hearts', 'diamonds', 'clubs']:
+            if multiplier_attempts > 0:
+                if random.choice([True, False]):
+                    current_prize *= 4
+                    multiplier_attempts -= 1
+                    context.bot.send_message(chat_id=chat_id, text=f"Успех! Ваш приз теперь {current_prize} франккоинов. Попробуйте снова или заберите приз.")
+                else:
+                    context.bot.send_message(chat_id=chat_id, text="Умножение не удалось! Вы потеряли весь выигрыш.")
+                    current_prize = 0
+                    game_active = None
+            else:
+                context.bot.send_message(chat_id=chat_id, text="Вы исчерпали все попытки умножения.")
+
+        else:
+            query.answer("Некорректная команда.")
     else:
         query.answer("Нет активной игры.")
         
