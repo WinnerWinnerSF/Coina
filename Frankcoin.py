@@ -212,13 +212,15 @@ def start_game(update: Update, context: CallbackContext):
                 bet_amount = float(context.args[0])
             except ValueError:
                 bet_amount = None
-        else:
-            bet_amount = None
-        
-        if bet_amount is None:
-            context.bot.send_message(chat_id=update.message.chat_id, text="Ошибка: Ставка не указана или указана неверно.")
-            return
+            
+            if bet_amount is None or bet_amount <= 0:
+                context.bot.send_message(chat_id=update.message.chat_id, text="Ошибка: Ставка должна быть положительным числом.")
+                return
 
+        else:
+            context.bot.send_message(chat_id=update.message.chat_id, text="Ошибка: Ставка не указана.")
+            return
+        
         if update.message.reply_to_message and update.message.reply_to_message.from_user:
             challenged_id = update.message.reply_to_message.from_user.id
             challenged_username = update.message.reply_to_message.from_user.username
@@ -313,10 +315,12 @@ def end_game(update: Update, context: CallbackContext, accepted: bool):
         keyboard = [
             [InlineKeyboardButton("Забрать приз", callback_data='claim')],
             [InlineKeyboardButton("Х2", callback_data='double')],
-            [InlineKeyboardButton("♠️", callback_data='suit')],
-            [InlineKeyboardButton("♣️", callback_data='suit')],
-            [InlineKeyboardButton("♥️", callback_data='suit')],
-            [InlineKeyboardButton("♦️", callback_data='suit')]
+            [
+                InlineKeyboardButton("♠️", callback_data='suit'),
+                InlineKeyboardButton("♥️", callback_data='suit'),
+                InlineKeyboardButton("♦️", callback_data='suit'),
+                InlineKeyboardButton("♣️", callback_data='suit')
+            ]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         context.bot.send_message(chat_id=chat_id, text=f"Поздравляем! Вы выиграли {current_prize} франккоинов. Выберите действие:", reply_markup=reply_markup)
@@ -327,8 +331,6 @@ def end_game(update: Update, context: CallbackContext, accepted: bool):
         
     else:
         context.bot.send_message(chat_id=chat_id, text="Игра не была принята.")
-    
-    # Не очищаем game_active, чтобы игра оставалась активной
 
 def button(update: Update, context: CallbackContext):
     """Обработка нажатий на кнопки."""
@@ -345,7 +347,6 @@ def button(update: Update, context: CallbackContext):
     if game_active:
         if query.data == 'accept':
             if user_id == game_active['challenged']:
-                # Удаление сообщения с предложением
                 context.bot.delete_message(chat_id=chat_id, message_id=query.message.message_id)
                 end_game(update, context, True)
             else:
@@ -353,7 +354,6 @@ def button(update: Update, context: CallbackContext):
                 
         elif query.data == 'cancel':
             if user_id in [game_active['challenged'], game_active['bettor']]:
-                # Удаление сообщения с предложением
                 context.bot.delete_message(chat_id=chat_id, message_id=query.message.message_id)
                 end_game(update, context, False)
             else:
@@ -380,7 +380,7 @@ def button(update: Update, context: CallbackContext):
         elif query.data == 'double':
             if multiplier_attempts > 0:
                 if random.choice([True, False]):
-                    current_prize *= 2
+                    current_prize *= 2  # Умножаем текущий приз
                     multiplier_attempts -= 1
                     context.bot.send_message(chat_id=chat_id, text=f"Успех! Ваш приз теперь {current_prize} франккоинов. Попробуйте снова или заберите приз.")
                 else:
@@ -391,7 +391,7 @@ def button(update: Update, context: CallbackContext):
         elif query.data in ['spades', 'hearts', 'diamonds', 'clubs']:
             if multiplier_attempts > 0:
                 if random.choice([True, False]):
-                    current_prize *= 4
+                    current_prize *= 4  # Умножаем текущий приз
                     multiplier_attempts -= 1
                     context.bot.send_message(chat_id=chat_id, text=f"Успех! Ваш приз теперь {current_prize} франккоинов. Попробуйте снова или заберите приз.")
                 else:
@@ -404,8 +404,8 @@ def button(update: Update, context: CallbackContext):
         else:
             query.answer("Некорректная команда.")
     else:
-        query.answer("Нет активной игры.")
-        
+        query.answer("Нет активной игры.")           
+            
 def error_handler(update: Update, context: CallbackContext):
     """Обработчик ошибок."""
     logger.error(f"Ошибка при обработке обновления: {context.error}")
