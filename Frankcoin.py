@@ -372,17 +372,21 @@ def button(update: Update, context: CallbackContext):
     if game_active:
         if query.data == 'accept':
             if user_id == game_active['challenged']:
+                # Удаление сообщения с предложением
+                context.bot.delete_message(chat_id=chat_id, message_id=query.message.message_id)
                 end_game(update, context, True)
             else:
                 query.answer("Вы не можете принять эту ставку.")
         elif query.data == 'cancel':
             if user_id in [game_active['challenged'], game_active['bettor']]:
+                # Удаление сообщения с предложением
+                context.bot.delete_message(chat_id=chat_id, message_id=query.message.message_id)
                 end_game(update, context, False)
             else:
                 query.answer("Вы не можете отменить эту ставку.")
     else:
         query.answer("Нет активной игры.")
-
+        
 def error_handler(update: Update, context: CallbackContext):
     """Обработчик ошибок."""
     logger.error(f"Ошибка при обработке обновления: {context.error}")
