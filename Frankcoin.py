@@ -441,7 +441,7 @@ def main():
     
     initialize_db()
     
-    TOKEN = '7391304816:AAH4PY8Y2JFxEKKGRPx_F8DQo1EgPzCp3qo'
+    TOKEN = '7391304816:AAElyYZf991bag-UVEo8lxZsi2GYWOi8t4w'
     
     updater = Updater(token=TOKEN, use_context=True)
     job_queue = updater.job_queue
