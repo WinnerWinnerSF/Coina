@@ -1,9 +1,12 @@
 import mysql.connector
 import logging
 import random
+import time
+
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext, CallbackQueryHandler
 
+bot_start_time = time.time()
 # Конфигурация логирования
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -49,9 +52,12 @@ def initialize_db():
 def handle_message(update: Update, context: CallbackContext):
     """Обработка сообщений и начисление коинов."""
     if update.message is None or update.message.from_user is None:
-        logger.warning("Получено обновление без сообщения или информации о пользователе.")
         return
     
+    # Проверка времени
+    if update.message.date.timestamp() < bot_start_time:
+        return  # Игнорировать сообщения до запуска бота
+
     user_id = update.message.from_user.id
     username = update.message.from_user.username
     
@@ -82,7 +88,7 @@ def handle_message(update: Update, context: CallbackContext):
         connection.close()
     
     logger.info(f"Пользователю {username} ({user_id}) начислено {coins_earned} коинов.")
-    
+
 def show_coins(update: Update, context: CallbackContext):
     """Команда /mycoins для показа количества франккоинов."""
     if update.message is None or update.message.from_user is None:
