@@ -311,38 +311,55 @@ def end_game(update: Update, context: CallbackContext, accepted: bool):
         result = random.choice(['heads', 'tails'])  # "heads" или "tails"
         
         # Определение победителя
-        if (result == 'heads' and bet_side == 'heads') or (result == 'tails' and bet_side == 'tails'):
-            winner_id = bettor_id
-        else:
-            winner_id = challenged_id
+        winner_id = bettor_id if (result == bet_side) else challenged_id
         
-        current_prize = bet_amount
-        
+        # Установка текущего приза
         if winner_id == bettor_id:
+            current_prize = bet_amount
             context.bot.send_message(chat_id=chat_id, text=f"Поздравляем, @{bettor_username}! Вы выиграли {current_prize:.4f} франккоинов.")
         else:
-            context.bot.send_message(chat_id=chat_id, text=f"@{challenged_username} победил! Приз {bet_amount:.4f} франккоинов сгорел.")
-            current_prize = 0
+            current_prize = 0  # Приз не сохраняется для проигравшего
+            context.bot.send_message(chat_id=chat_id, text=f"@{challenged_username} победил! Приз не будет сохранен.")
+        
+        # Сгорание ставки проигравшего и обновление базы данных
+        try:
+            connection = connect_db()
+            cursor = connection.cursor()
             
+            if winner_id == bettor_id:
+                # Снять ставку у проигравшего
+                cursor.execute("UPDATE coins SET coins = coins - %s WHERE user_id = %s", (bet_amount, challenged_id))
+            else:
+                cursor.execute("UPDATE coins SET coins = coins - %s WHERE user_id = %s", (bet_amount, bettor_id))
+            
+            connection.commit()
+        except mysql.connector.Error as err:
+            logger.error(f"Ошибка при обновлении данных о коинов: {err}")
+            context.bot.send_message(chat_id=chat_id, text="Произошла ошибка при обновлении данных о коинов.")
+        finally:
+            cursor.close()
+            connection.close()
+        
         # Продолжение с кнопками и предложением умножения
-        keyboard = [
-            [InlineKeyboardButton("Забрать приз", callback_data='claim')],
-            [InlineKeyboardButton("Х2", callback_data='double')],
-            [
-                InlineKeyboardButton("♠️", callback_data='suit'),
-                InlineKeyboardButton("♥️", callback_data='suit'),
-                InlineKeyboardButton("♦️", callback_data='suit'),
-                InlineKeyboardButton("♣️", callback_data='suit')
+        if winner_id == bettor_id:
+            keyboard = [
+                [InlineKeyboardButton("Забрать приз", callback_data='claim')],
+                [InlineKeyboardButton("Х2", callback_data='double')],
+                [
+                    InlineKeyboardButton("♠️", callback_data='suit'),
+                    InlineKeyboardButton("♥️", callback_data='suit'),
+                    InlineKeyboardButton("♦️", callback_data='suit'),
+                    InlineKeyboardButton("♣️", callback_data='suit')
+                ]
             ]
-        ]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        context.bot.send_message(chat_id=chat_id, text=f"Выберите действие:", reply_markup=reply_markup)
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            context.bot.send_message(chat_id=chat_id, text=f"Выберите действие:", reply_markup=reply_markup)
         
         game_active['prize'] = current_prize
         game_active['multiplier_attempts'] = multiplier_attempts
         
     else:
-        context.bot.send_message(chat_id=chat_id, text="Игра не была принята.")
+        context.bot.send_message(chat_id=chat_id, text="Игра не была принята.")            
 
 def button(update: Update, context: CallbackContext):
     """Обработка нажатий на кнопки."""
