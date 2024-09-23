@@ -335,7 +335,7 @@ def end_game(update: Update, context: CallbackContext, accepted: bool):
                 connection.commit()
                 
                 victory_message = context.bot.send_message(chat_id=chat_id, 
-                    text=f"🪙 Игра завершена! Выпал {'орел' if result == 'heads' else 'решка'}. Победитель: @{winner_username}.")
+                    text=f"🪙 Игра завершена! Выпал {'орел' if result == 'heads' else 'решка'}. Победитель: @{winner_username}. Ваш банк: {betsizewinner}")
                 
                 victory_message_id = victory_message.message_id
 
@@ -402,7 +402,7 @@ def button(update: Update, context: CallbackContext):
             # Логика удвоения
             win_amount = betsizewinner * 2 if random.choice([True, False]) else 0
             result_text = "Умножение на 2 успешно!" if win_amount > 0 else "Не удалось удвоить ставку."
-            context.bot.send_message(chat_id=chat_id, text=f"{result_text} Новый приз составляет: {win_amount}.")
+            context.bot.send_message(chat_id=chat_id, text=f"{result_text} Новый банк победителя составляет: {win_amount}.")
             
             # Удаляем сообщение о победе
             context.bot.delete_message(chat_id=chat_id, message_id=query.message.message_id)
