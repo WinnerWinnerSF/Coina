@@ -366,6 +366,7 @@ def end_game(update: Update, context: CallbackContext, accepted: bool):
 
 def button(update: Update, context: CallbackContext):
     """Обработка нажатий на кнопки."""
+    global game_active, winner_identified, betsizewinner  # Инициализация всех необходимых глобальных переменных
     query = update.callback_query
     
     if query is None or query.message is None:
