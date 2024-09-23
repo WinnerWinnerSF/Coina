@@ -510,6 +510,50 @@ def cancel_game(update: Update, context: CallbackContext):
 
     context.bot.send_message(chat_id=update.message.chat_id, text="Игра была сброшена.")
 
+def give_coins(update: Update, context: CallbackContext):
+    """Команда /give для передачи коинов."""
+    if update.message.reply_to_message is None:
+        context.bot.send_message(chat_id=update.message.chat_id, text="Пожалуйста, ответьте на сообщение пользователя, чтобы подарить коины.")
+        return
+
+    user_id = update.message.from_user.id
+    recipient_id = update.message.reply_to_message.from_user.id
+    amount = context.args[0] if context.args else None
+
+    try:
+        amount = float(amount)
+    except (ValueError, IndexError):
+        context.bot.send_message(chat_id=update.message.chat_id, text="Ошибка: укажите корректное количество коинов для передачи.")
+        return
+
+    if amount <= 0:
+        context.bot.send_message(chat_id=update.message.chat_id, text="Количество коинов должно быть больше нуля.")
+        return
+
+    try:
+        connection = connect_db()
+        cursor = connection.cursor()
+        
+        # Проверяем, есть ли у отправителя достаточное количество коинов
+        cursor.execute("SELECT coins FROM coins WHERE user_id = %s", (user_id,))
+        result = cursor.fetchone()
+        
+        if result and result[0] >= amount:
+            # Уменьшаем коинов у отправителя и увеличиваем у получателя
+            cursor.execute("UPDATE coins SET coins = coins - %s WHERE user_id = %s", (amount, user_id))
+            cursor.execute("UPDATE coins SET coins = coins + %s WHERE user_id = %s", (amount, recipient_id))
+            connection.commit()
+            
+            context.bot.send_message(chat_id=update.message.chat_id, text=f"@{update.message.from_user.username} подарил {amount} коинов @{update.message.reply_to_message.from_user.username}.")
+        else:
+            context.bot.send_message(chat_id=update.message.chat_id, text="Недостаточно коинов для передачи.")
+    except mysql.connector.Error as err:
+        logger.error(f"Ошибка при работе с базой данных: {err}")
+        context.bot.send_message(chat_id=update.message.chat_id, text="Произошла ошибка при передаче коинов.")
+    finally:
+        cursor.close()
+        connection.close()
+
 def main():
     """Запуск бота."""
     global job_queue
@@ -530,6 +574,7 @@ def main():
     dispatcher.add_handler(CommandHandler('r', start_game))
     dispatcher.add_handler(CommandHandler('onegram', onegram))
     dispatcher.add_handler(CommandHandler('cg', cancel_game))
+    dispatcher.add_handler(CommandHandler('give', give_coins))
     dispatcher.add_handler(CallbackQueryHandler(button))
     
     # Добавление обработчика ошибок
