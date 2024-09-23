@@ -380,9 +380,9 @@ def button(update: Update, context: CallbackContext):
             try:
                 connection = connect_db()
                 cursor = connection.cursor()
-                cursor.execute("UPDATE coins SET coins = coins + %s WHERE user_id = %s", (betsizewinner, user_id))
+                cursor.execute("UPDATE coins SET coins = coins + %s WHERE user_id = %s", (betsizewinner*2, user_id))
                 connection.commit()
-                context.bot.send_message(chat_id=chat_id, text=f"Вы забрали приз! Сумма ставки: {betsizewinner}.")
+                context.bot.send_message(chat_id=chat_id, text=f"Вы забрали приз! Сумма выигрыша: {betsizewinner*2}.")
                 
                 # Удаляем сообщение о победе
                 context.bot.delete_message(chat_id=chat_id, message_id=query.message.message_id)
@@ -411,7 +411,7 @@ def button(update: Update, context: CallbackContext):
                 try:
                     connection = connect_db()
                     cursor = connection.cursor()
-                    cursor.execute("UPDATE coins SET coins = coins + %s WHERE user_id = %s", (win_amount, user_id))
+                    cursor.execute("UPDATE coins SET coins = coins + %s WHERE user_id = %s", (win_amount+betsizewinner, user_id))
                     connection.commit()
                 finally:
                     cursor.close()
