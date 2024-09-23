@@ -289,7 +289,6 @@ def start_game(update: Update, context: CallbackContext):
             context.bot.send_message(chat_id=update.message.chat_id, text="Ответьте на сообщение пользователя, чтобы его вызвать на игру.")
     else:
         context.bot.send_message(chat_id=update.message.chat_id, text="Ошибка в команде.")
-
 def end_game(update: Update, context: CallbackContext, accepted: bool):
     """Закончить игру."""
     global game_active, winner_identified, betsizewinner
@@ -337,7 +336,11 @@ def end_game(update: Update, context: CallbackContext, accepted: bool):
                 cursor.execute("UPDATE coins SET coins = coins - %s WHERE user_id = %s", (bet_amount, winner_id))
                 connection.commit()
                 
-                context.bot.send_message(chat_id=chat_id, text=f"🪙 Игра завершена! Выпал {'орел' if result == 'heads' else 'решка'}. Победитель: @{winner_username}.")
+                victory_message = context.bot.send_message(chat_id=chat_id, 
+                    text=f"🪙 Игра завершена! Выпал {'орел' if result == 'heads' else 'решка'}. Победитель: @{winner_username}.")
+
+                # Сохраняем ID сообщения о победе
+                victory_message_id = victory_message.message_id  
 
                 # Отправляем кнопки для действий
                 keyboard = [
@@ -366,7 +369,7 @@ def end_game(update: Update, context: CallbackContext, accepted: bool):
 
 def button(update: Update, context: CallbackContext):
     """Обработка нажатий на кнопки."""
-    global game_active, winner_identified, betsizewinner  # Инициализация всех необходимых глобальных переменных
+    global game_active, winner_identified, betsizewinner
     query = update.callback_query
     
     if query is None or query.message is None:
@@ -384,7 +387,10 @@ def button(update: Update, context: CallbackContext):
                 cursor = connection.cursor()
                 cursor.execute("UPDATE coins SET coins = coins + %s WHERE user_id = %s", (betsizewinner, user_id))
                 connection.commit()
-                context.bot.send_message(chat_id=chat_id, text="Вы забрали приз!")
+                context.bot.send_message(chat_id=chat_id, text=f"Вы забрали приз! Сумма ставки: {betsizewinner}.")
+                
+                # Удаляем сообщение о победе
+                context.bot.delete_message(chat_id=chat_id, message_id=query.message.message_id - 1)  # Сообщение о победе
             finally:
                 cursor.close()
                 connection.close()
@@ -400,18 +406,21 @@ def button(update: Update, context: CallbackContext):
             if query.data == 'double':
                 if random.choice([True, False]):
                     win_amount = betsizewinner * 2
-                    context.bot.send_message(chat_id=chat_id, text="Умножение на 2 успешно!")
+                    context.bot.send_message(chat_id=chat_id, text=f"Умножение на 2 успешно! Новый приз составляет: {win_amount}.")
                 else:
                     win_amount = 0
-                    context.bot.send_message(chat_id=chat_id, text="Не удалось удвоить ставку. Вся ставка сгорела.")
+                    context.bot.send_message(chat_id=chat_id, text=f"Не удалось удвоить ставку. Победитель потерял сумму ставки в размере: {betsizewinner}.")
             else:
                 if random.choice([True, False]):
                     win_amount = betsizewinner * 4
-                    context.bot.send_message(chat_id=chat_id, text="Умножение на 4 успешно!")
+                    context.bot.send_message(chat_id=chat_id, text=f"Умножение на 4 успешно! Новый приз составляет: {win_amount}.")
                 else:
                     win_amount = 0
-                    context.bot.send_message(chat_id=chat_id, text="Не удалось умножить ставку. Вся ставка сгорела.")
+                    context.bot.send_message(chat_id=chat_id, text=f"Не удалось умножить ставку. Победитель потерял сумму ставки в размере: {betsizewinner}.")
             
+            # Удаляем сообщение с кнопками
+            context.bot.delete_message(chat_id=chat_id, message_id=query.message.message_id)
+
             # Обновляем базу данных
             if win_amount > 0:
                 try:
@@ -431,12 +440,19 @@ def button(update: Update, context: CallbackContext):
             context.bot.send_message(chat_id=chat_id, text="Вы не можете выполнить это действие, так как не являетесь победителем.")
     elif query.data == 'accept':
         if user_id == game_active['challenged']:
+            # Удаляем сообщение с предложением сыграть
+            context.bot.delete_message(chat_id=chat_id, message_id=query.message.message_id - 1)
             end_game(update, context, True)
         else:
             query.answer("Вы не можете принять эту ставку.")
     elif query.data == 'cancel':
         if user_id in [game_active['challenged'], game_active['bettor']]:
+            # Удаляем сообщение с предложением сыграть
+            context.bot.delete_message(chat_id=chat_id, message_id=query.message.message_id - 1)
             end_game(update, context, False)
+            winner_identified = None
+            betsizewinner = 0.0000
+            game_active = None
         else:
             query.answer("Вы не можете отменить эту ставку.")
     else:
