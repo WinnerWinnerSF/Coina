@@ -369,7 +369,7 @@ def button(update: Update, context: CallbackContext):
     user_id = query.from_user.id
     chat_id = query.message.chat_id
     
-        if query.data == 'collect_prize':
+    if query.data == 'collect_prize':
         if user_id == winner_identified:
             try:
                 connection = connect_db()
