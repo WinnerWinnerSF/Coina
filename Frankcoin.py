@@ -206,8 +206,8 @@ def start_game(update: Update, context: CallbackContext):
         else:
             bet_amount = None
         
-        if bet_amount is None:
-            context.bot.send_message(chat_id=update.message.chat_id, text="Ошибка: Ставка не указана или указана неверно.")
+        if bet_amount is None or bet_amount <= 0:  # Проверка на отрицательное значение
+            context.bot.send_message(chat_id=update.message.chat_id, text="Ошибка: Ставка не указана, указана неверно или является отрицательной.")
             return
 
         if update.message.reply_to_message and update.message.reply_to_message.from_user:
@@ -216,6 +216,11 @@ def start_game(update: Update, context: CallbackContext):
 
             if challenged_username is None:
                 context.bot.send_message(chat_id=update.message.chat_id, text="Ошибка: У пользователя, которого вы вызываете, скрыт юзернейм. Игра не может быть начата.")
+                return
+
+            # Проверка на игру с самим собой
+            if bettor_id == challenged_id:
+                context.bot.send_message(chat_id=update.message.chat_id, text="Ошибка: Вы не можете играть сами с собой.")
                 return
 
             chat_id = update.message.chat_id
