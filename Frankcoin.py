@@ -403,9 +403,9 @@ def button(update: Update, context: CallbackContext):
         else:
             context.bot.send_message(chat_id=chat_id, text="Вы не можете забрать приз, так как не являетесь победителем.")   
     elif query.data == 'double':
-        if user_id == winner_identified:
+    if user_id == winner_identified:
         # Логика удвоения с шансом 1 к 4
-        if random.random() < 0.20:  # 25% шанс на успех
+        if random.random() < 0.25:  # 25% шанс на успех
             win_amount = betsizewinner * 2
             result_text = "Умножение на 2 успешно!"
             
@@ -436,14 +436,7 @@ def button(update: Update, context: CallbackContext):
         context.bot.send_message(chat_id=chat_id, text=f"{result_text} Новый банк победителя составляет: {win_amount}.")
         
         # Удаляем сообщение о победе
-        context.bot.delete_message(chat_id=chat_id, message_id=query.message.message_id)
-
-        winner_identified = None
-        betsizewinner = 0.0000
-        game_active = None
-    else:
-        context.bot.send_message(chat_id=chat_id, text="Вы не можете выполнить это действие, так как не являетесь победителем.")
-        
+        context.bot.delete_message(chat_id=chat_id
     elif query.data == 'accept':
         if user_id == game_active['challenged']:
             if game_active['started']:
