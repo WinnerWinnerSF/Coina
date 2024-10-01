@@ -404,45 +404,47 @@ def button(update: Update, context: CallbackContext):
             context.bot.send_message(chat_id=chat_id, text="Вы не можете забрать приз, так как не являетесь победителем.")
 
     elif query.data == 'double':
-        if user_id == winner_identified:
-            # Логика удвоения
-            win_amount = betsizewinner * 2 if random.choice([True, False]) else 0
+    if user_id == winner_identified:
+        # Логика удвоения с шансом 1 к 4
+        if random.random() < 0.20:  # 25% шанс на успех
+            win_amount = betsizewinner * 2
+            result_text = "Умножение на 2 успешно!"
             
-            if win_amount > 0:
-                # Запись удачной игры для победителя
-                try:
-                    connection = connect_db()
-                    cursor = connection.cursor()
-                    cursor.execute("UPDATE coins SET coins = coins + %s WHERE user_id = %s", (win_amount, user_id))
-                    cursor.execute("UPDATE coins SET successful_game = successful_game + 1 WHERE user_id = %s", (user_id,))
-                    connection.commit()
-                    result_text = "Умножение на 2 успешно!"
-                finally:
-                    cursor.close()
-                    connection.close()
-            else:
-                # Запись неудачной игры для победителя
-                try:
-                    connection = connect_db()
-                    cursor = connection.cursor()
-                    cursor.execute("UPDATE coins SET unsuccessful_game = unsuccessful_game + 1 WHERE user_id = %s", (user_id,))
-                    connection.commit()
-                    result_text = "Не удалось удвоить ставку."
-                finally:
-                    cursor.close()
-                    connection.close()
-
-            context.bot.send_message(chat_id=chat_id, text=f"{result_text} Новый банк победителя составляет: {win_amount}.")
-            
-            # Удаляем сообщение о победе
-            context.bot.delete_message(chat_id=chat_id, message_id=query.message.message_id)
-
-            winner_identified = None
-            betsizewinner = 0.0000
-            game_active = None
+            # Запись удачной игры для победителя
+            try:
+                connection = connect_db()
+                cursor = connection.cursor()
+                cursor.execute("UPDATE coins SET coins = coins + %s WHERE user_id = %s", (win_amount, user_id))
+                cursor.execute("UPDATE coins SET successful_game = successful_game + 1 WHERE user_id = %s", (user_id,))
+                connection.commit()
+            finally:
+                cursor.close()
+                connection.close()
         else:
-            context.bot.send_message(chat_id=chat_id, text="Вы не можете выполнить это действие, так как не являетесь победителем.")
+            win_amount = 0
+            result_text = "Не удалось удвоить ставку."
             
+            # Запись неудачной игры для победителя
+            try:
+                connection = connect_db()
+                cursor = connection.cursor()
+                cursor.execute("UPDATE coins SET unsuccessful_game = unsuccessful_game + 1 WHERE user_id = %s", (user_id,))
+                connection.commit()
+            finally:
+                cursor.close()
+                connection.close()
+
+        context.bot.send_message(chat_id=chat_id, text=f"{result_text} Новый банк победителя составляет: {win_amount}.")
+        
+        # Удаляем сообщение о победе
+        context.bot.delete_message(chat_id=chat_id, message_id=query.message.message_id)
+
+        winner_identified = None
+        betsizewinner = 0.0000
+        game_active = None
+    else:
+        context.bot.send_message(chat_id=chat_id, text="Вы не можете выполнить это действие, так как не являетесь победителем.")
+        
     elif query.data == 'accept':
         if user_id == game_active['challenged']:
             if game_active['started']:
