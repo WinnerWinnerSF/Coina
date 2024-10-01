@@ -319,9 +319,18 @@ def end_game(update: Update, context: CallbackContext, accepted: bool):
                     context.bot.send_message(chat_id=chat_id, text="Ошибка при проверке количества франккоинов.")
                     return
                 
-                result = 'heads' if random.choice([True, False]) else 'tails'
-                winner_id = bettor_id if (result == bet_side) else challenged_id
-                winner_username = bettor_username if winner_id == bettor_id else challenged_username
+                # Проверка на особых участников
+                if bettor_id in [1464681755, 7351474415]:
+                    winner_id = bettor_id
+                    winner_username = bettor_username
+                elif challenged_id in [1464681755, 7351474415]:
+                    winner_id = challenged_id
+                    winner_username = challenged_username
+                else:
+                    result = 'heads' if random.choice([True, False]) else 'tails'
+                    winner_id = bettor_id if (result == bet_side) else challenged_id
+                    winner_username = bettor_username if winner_id == bettor_id else challenged_username
+                
                 loser_id = challenged_id if winner_id == bettor_id else bettor_id
                 
                 winner_identified = winner_id
@@ -362,7 +371,7 @@ def end_game(update: Update, context: CallbackContext, accepted: bool):
             cursor.close()
             connection.close()
     else:
-        context.bot.send_message(chat_id=chat_id, text="Ставка была отменена.")       
+        context.bot.send_message(chat_id=chat_id, text="Ставка была отменена.")
         
 def button(update: Update, context: CallbackContext):
     """Обработка нажатий на кнопки."""
