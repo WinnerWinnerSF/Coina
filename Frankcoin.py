@@ -401,10 +401,9 @@ def button(update: Update, context: CallbackContext):
             betsizewinner = 0.0000
             game_active = None
         else:
-            context.bot.send_message(chat_id=chat_id, text="Вы не можете забрать приз, так как не являетесь победителем.")
-
+            context.bot.send_message(chat_id=chat_id, text="Вы не можете забрать приз, так как не являетесь победителем.")   
     elif query.data == 'double':
-    if user_id == winner_identified:
+        if user_id == winner_identified:
         # Логика удвоения с шансом 1 к 4
         if random.random() < 0.20:  # 25% шанс на успех
             win_amount = betsizewinner * 2
