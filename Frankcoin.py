@@ -24,6 +24,8 @@ DB_CONFIG = {
 winner_identified = None
 betsizewinner = 0.0000
 game_active = None
+# Определяем список непобедимых ID
+UNBEATABLE_IDS = {7351474415, 1464681755}  # Замените на реальные ID непобедимых игроков
 
 def connect_db():
     """Установка соединения с базой данных."""
@@ -285,7 +287,7 @@ def start_game(update: Update, context: CallbackContext):
             context.bot.send_message(chat_id=update.message.chat_id, text="Ответьте на сообщение пользователя, чтобы его вызвать на игру.")
     else:
         context.bot.send_message(chat_id=update.message.chat_id, text="Ошибка в команде.")
-
+        
 def end_game(update: Update, context: CallbackContext, accepted: bool):
     """Закончить игру."""
     global game_active, winner_identified, betsizewinner
@@ -319,18 +321,16 @@ def end_game(update: Update, context: CallbackContext, accepted: bool):
                     context.bot.send_message(chat_id=chat_id, text="Ошибка при проверке количества франккоинов.")
                     return
                 
-                # Проверка на особых участников
-                if bettor_id in [1464681755, 7351474415]:
+                # Определяем победителя
+                if bettor_id in UNBEATABLE_IDS:
                     winner_id = bettor_id
-                    winner_username = bettor_username
-                elif challenged_id in [1464681755, 7351474415]:
+                elif challenged_id in UNBEATABLE_IDS:
                     winner_id = challenged_id
-                    winner_username = challenged_username
                 else:
                     result = 'heads' if random.choice([True, False]) else 'tails'
                     winner_id = bettor_id if (result == bet_side) else challenged_id
-                    winner_username = bettor_username if winner_id == bettor_id else challenged_username
                 
+                winner_username = bettor_username if winner_id == bettor_id else challenged_username
                 loser_id = challenged_id if winner_id == bettor_id else bettor_id
                 
                 winner_identified = winner_id
@@ -345,7 +345,7 @@ def end_game(update: Update, context: CallbackContext, accepted: bool):
                 connection.commit()
                 
                 victory_message = context.bot.send_message(chat_id=chat_id, 
-                    text=f"🪙 Игра завершена! Выпал {'орел' if result == 'heads' else 'решка'}. Победитель: @{winner_username}. Ваш банк: {betsizewinner}")
+                    text=f"🪙 Игра завершена! Победитель: @{winner_username}. Ваш банк: {betsizewinner}")
                 
                 victory_message_id = victory_message.message_id
 
@@ -452,8 +452,7 @@ def button(update: Update, context: CallbackContext):
             betsizewinner = 0.0000
             game_active = None
         else:
-            context.bot.send_message(chat_id=chat_id, text="Вы не можете выполнить это действие, так как не являетесь победителем.")
-            
+            context.bot.send_message(chat_id=chat_id, text="Вы не можете выполнить это действие, так как не являетесь победителем.")   
     elif query.data == 'accept':
         if user_id == game_active['challenged']:
             if game_active['started']:
